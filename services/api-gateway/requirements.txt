@@ -4,3 +4,5 @@ redis
 psycopg2-binary
 prometheus-client
 httpx 
+requests
+structlog
