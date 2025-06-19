@@ -8,4 +8,5 @@ prometheus-client==0.17.1
 structlog==23.1.0
 sqlalchemy==2.0.21
 requests==2.31.0
-python-dotenv==1.0.0 
+python-dotenv==1.0.0
+httpx 
