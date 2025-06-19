@@ -1,0 +1,269 @@
+version: '3.8'
+
+services:
+  # База данных PostgreSQL с репликацией
+  postgres-master:
+    image: postgres:15
+    container_name: iot_postgres_master
+    environment:
+      POSTGRES_DB: iot_system
+      POSTGRES_USER: iot_user
+      POSTGRES_PASSWORD: iot_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    volumes:
+      - postgres_master_data:/var/lib/postgresql/data
+      - ./postgres/master/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./postgres/master/pg_hba.conf:/etc/postgresql/pg_hba.conf
+      - ./scripts/init-master.sh:/docker-entrypoint-initdb.d/init-master.sh
+    ports:
+      - "5432:5432"
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    networks:
+      - iot_network
+
+  postgres-slave:
+    image: postgres:15
+    container_name: iot_postgres_slave
+    environment:
+      POSTGRES_DB: iot_system
+      POSTGRES_USER: iot_user
+      POSTGRES_PASSWORD: iot_password
+    volumes:
+      - postgres_slave_data:/var/lib/postgresql/data
+      - ./postgres/slave/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./postgres/slave/pg_hba.conf:/etc/postgresql/pg_hba.conf
+      - ./scripts/init-slave.sh:/docker-entrypoint-initdb.d/init-slave.sh
+    ports:
+      - "5433:5432"
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    depends_on:
+      - postgres-master
+    networks:
+      - iot_network
+
+  # Redis для кэширования и очередей
+  redis:
+    image: redis:7-alpine
+    container_name: iot_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - iot_network
+
+  # RabbitMQ для очередей сообщений
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: iot_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: iot_user
+      RABBITMQ_DEFAULT_PASS: iot_password
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - iot_network
+
+  # Nginx для балансировки нагрузки
+  nginx:
+    image: nginx:alpine
+    container_name: iot_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./static:/var/www/static
+    depends_on:
+      - api-gateway
+      - device-service
+      - analytics-service
+      - user-service
+    networks:
+      - iot_network
+
+  # API Gateway (FastAPI)
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: iot_api_gateway
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgresql://iot_user:iot_password@postgres-master:5432/iot_system
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - postgres-master
+    networks:
+      - iot_network
+
+  # Сервис устройств
+  device-service:
+    build:
+      context: ./services/device-service
+      dockerfile: Dockerfile
+    container_name: iot_device_service
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgresql://iot_user:iot_password@postgres-master:5432/iot_system
+      - RABBITMQ_URL=amqp://iot_user:iot_password@rabbitmq:5672/
+    depends_on:
+      - redis
+      - postgres-master
+      - rabbitmq
+    networks:
+      - iot_network
+
+  # Сервис аналитики
+  analytics-service:
+    build:
+      context: ./services/analytics-service
+      dockerfile: Dockerfile
+    container_name: iot_analytics_service
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgresql://iot_user:iot_password@postgres-master:5432/iot_system
+      - RABBITMQ_URL=amqp://iot_user:iot_password@rabbitmq:5672/
+    depends_on:
+      - redis
+      - postgres-master
+      - rabbitmq
+    networks:
+      - iot_network
+
+  # Сервис пользователей
+  user-service:
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile
+    container_name: iot_user_service
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgresql://iot_user:iot_password@postgres-master:5432/iot_system
+      - RABBITMQ_URL=amqp://iot_user:iot_password@rabbitmq:5672/
+    depends_on:
+      - redis
+      - postgres-master
+      - rabbitmq
+    networks:
+      - iot_network
+
+  # Сервис аудита
+  audit-service:
+    build:
+      context: ./services/audit-service
+      dockerfile: Dockerfile
+    container_name: iot_audit_service
+    environment:
+      - POSTGRES_URL=postgresql://iot_user:iot_password@postgres-master:5432/iot_system
+      - RABBITMQ_URL=amqp://iot_user:iot_password@rabbitmq:5672/
+    depends_on:
+      - postgres-master
+      - rabbitmq
+    networks:
+      - iot_network
+
+  # Celery Worker для асинхронных задач
+  celery-worker:
+    build:
+      context: ./services/celery-worker
+      dockerfile: Dockerfile
+    container_name: iot_celery_worker
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgresql://iot_user:iot_password@postgres-master:5432/iot_system
+      - RABBITMQ_URL=amqp://iot_user:iot_password@rabbitmq:5672/
+    depends_on:
+      - redis
+      - postgres-master
+      - rabbitmq
+    networks:
+      - iot_network
+
+  # Prometheus для мониторинга
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: iot_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - iot_network
+
+  # Grafana для визуализации
+  grafana:
+    image: grafana/grafana:latest
+    container_name: iot_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+    networks:
+      - iot_network
+
+  # MinIO для S3-совместимого хранилища
+  minio:
+    image: minio/minio:latest
+    container_name: iot_minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - iot_network
+
+  # DNS сервер (dnsmasq) для симуляции DNS-балансировки
+  dnsmasq:
+    image: jpillora/dnsmasq:latest
+    container_name: iot_dnsmasq
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+    environment:
+      - HTTP_USER=admin
+      - HTTP_PASS=admin
+    volumes:
+      - ./dns/dnsmasq.conf:/etc/dnsmasq.conf
+    networks:
+      - iot_network
+
+volumes:
+  postgres_master_data:
+  postgres_slave_data:
+  redis_data:
+  rabbitmq_data:
+  prometheus_data:
+  grafana_data:
+  minio_data:
+
+networks:
+  iot_network:
+    driver: bridge 

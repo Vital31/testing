@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Система - Панель управления</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .sidebar .nav-link {
+            color: rgba(255,255,255,0.8);
+            border-radius: 8px;
+            margin: 2px 0;
+            transition: all 0.3s;
+        }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            color: white;
+            background: rgba(255,255,255,0.1);
+        }
+        .main-content {
+            background-color: #f8f9fa;
+        }
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-healthy { background-color: #28a745; }
+        .status-warning { background-color: #ffc107; }
+        .status-error { background-color: #dc3545; }
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        .metric-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        .device-card {
+            border-left: 4px solid #667eea;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .error-message {
+            display: none;
+            color: #dc3545;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #f8d7da;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Боковая панель -->
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <div class="text-center mb-4">
+                        <h4 class="text-white">
+                            <i class="fas fa-microchip"></i> IoT Система
+                        </h4>
+                        <p class="text-white-50">Панель управления</p>
+                    </div>
+                    
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#dashboard" data-bs-toggle="tab">
+                                <i class="fas fa-tachometer-alt"></i> Дашборд
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#devices" data-bs-toggle="tab">
+                                <i class="fas fa-sensor"></i> Устройства
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#analytics" data-bs-toggle="tab">
+                                <i class="fas fa-chart-line"></i> Аналитика
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#monitoring" data-bs-toggle="tab">
+                                <i class="fas fa-eye"></i> Мониторинг
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#settings" data-bs-toggle="tab">
+                                <i class="fas fa-cog"></i> Настройки
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#backup" data-bs-toggle="tab">
+                                <i class="fas fa-database"></i> Резервное копирование
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#logs" data-bs-toggle="tab">
+                                <i class="fas fa-file-alt"></i> Логи
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Основной контент -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
+                <div class="tab-content">
+                    <!-- Дашборд -->
+                    <div class="tab-pane fade show active" id="dashboard">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">Дашборд</h1>
+                            <div class="btn-toolbar mb-2 mb-md-0">
+                                <div class="btn-group me-2">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshDashboard()">
+                                        <i class="fas fa-sync-alt"></i> Обновить
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Метрики -->
+                        <div class="row mb-4">
+                            <div class="col-xl-3 col-md-6 mb-4">
+                                <div class="card metric-card">
+                                    <div class="card-body text-center">
+                                        <div class="metric-value" id="total-devices">-</div>
+                                        <div class="metric-label">Всего устройств</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-xl-3 col-md-6 mb-4">
+                                <div class="card metric-card">
+                                    <div class="card-body text-center">
+                                        <div class="metric-value" id="active-devices">-</div>
+                                        <div class="metric-label">Активных устройств</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-xl-3 col-md-6 mb-4">
+                                <div class="card metric-card">
+                                    <div class="card-body text-center">
+                                        <div class="metric-value" id="data-points">-</div>
+                                        <div class="metric-label">Точек данных</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-xl-3 col-md-6 mb-4">
+                                <div class="card metric-card">
+                                    <div class="card-body text-center">
+                                        <div class="metric-value" id="system-health">-</div>
+                                        <div class="metric-label">Состояние системы</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Статус сервисов -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">
+                                            <i class="fas fa-server"></i> Статус сервисов
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="services-status">
+                                            <div class="loading">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Загрузка...</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Графики -->
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">
+                                            <i class="fas fa-chart-area"></i> Активность устройств
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="chart-container">
+                                            <canvas id="deviceActivityChart"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">
+                                            <i class="fas fa-chart-pie"></i> Типы устройств
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="chart-container">
+                                            <canvas id="deviceTypesChart"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Устройства -->
+                    <div class="tab-pane fade" id="devices">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">Устройства</h1>
+                            <div class="btn-toolbar mb-2 mb-md-0">
+                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addDeviceModal">
+                                    <i class="fas fa-plus"></i> Добавить устройство
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-body">
+                                <div id="devices-list">
+                                    <div class="loading">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Загрузка устройств...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Аналитика -->
+                    <div class="tab-pane fade" id="analytics">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">Аналитика</h1>
+                            <div class="btn-toolbar mb-2 mb-md-0">
+                                <div class="btn-group me-2">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshAnalytics()">
+                                        <i class="fas fa-sync-alt"></i> Обновить
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">Аналитика в реальном времени</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="realtime-analytics">
+                                            <div class="loading">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Загрузка...</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">Обнаруженные аномалии</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="anomalies-list">
+                                            <div class="loading">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Загрузка...</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Мониторинг -->
+                    <div class="tab-pane fade" id="monitoring">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">Мониторинг</h1>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">Метрики Prometheus</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="prometheus-metrics">
+                                            <div class="loading">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Загрузка метрик...</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">Ссылки на мониторинг</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="list-group">
+                                            <a href="http://localhost:9090" target="_blank" class="list-group-item list-group-item-action">
+                                                <i class="fas fa-chart-line"></i> Prometheus
+                                            </a>
+                                            <a href="http://localhost:3000" target="_blank" class="list-group-item list-group-item-action">
+                                                <i class="fas fa-chart-bar"></i> Grafana
+                                            </a>
+                                            <a href="http://localhost:15672" target="_blank" class="list-group-item list-group-item-action">
+                                                <i class="fas fa-rabbit"></i> RabbitMQ Management
+                                            </a>
+                                            <a href="http://localhost:9001" target="_blank" class="list-group-item list-group-item-action">
+                                                <i class="fas fa-cloud"></i> MinIO Console
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Настройки -->
+                    <div class="tab-pane fade" id="settings">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">Настройки системы</h1>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">Конфигурация базы данных</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">Master Database</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text">Host</span>
+                                                <input type="text" class="form-control" value="postgres-master:5432" readonly>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Slave Database</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text">Host</span>
+                                                <input type="text" class="form-control" value="postgres-slave:5432" readonly>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Database Name</label>
+                                            <input type="text" class="form-control" value="iot_system" readonly>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">Конфигурация кэширования</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">Redis URL</label>
+                                            <input type="text" class="form-control" value="redis://redis:6379" readonly>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">TTL для кэша (секунды)</label>
+                                            <input type="number" class="form-control" value="300" id="cache-ttl">
+                                        </div>
+                                        <button type="button" class="btn btn-warning" onclick="clearCache()">
+                                            <i class="fas fa-trash"></i> Очистить кэш
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">Конфигурация очередей</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">RabbitMQ URL</label>
+                                            <input type="text" class="form-control" value="amqp://iot_user:iot_password@rabbitmq:5672/" readonly>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Очередь для обработки данных</label>
+                                            <input type="text" class="form-control" value="device_data_queue" readonly>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">Конфигурация мониторинга</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">Prometheus URL</label>
+                                            <input type="text" class="form-control" value="http://prometheus:9090" readonly>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Grafana URL</label>
+                                            <input type="text" class="form-control" value="http://grafana:3000" readonly>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Резервное копирование -->
+                    <div class="tab-pane fade" id="backup">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">Резервное копирование</h1>
+                            <div class="btn-toolbar mb-2 mb-md-0">
+                                <button type="button" class="btn btn-success" onclick="createBackup()">
+                                    <i class="fas fa-download"></i> Создать бэкап
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">Последние бэкапы</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="backups-list">
+                                            <div class="loading">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Загрузка бэкапов...</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">Восстановление</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">Выберите файл бэкапа</label>
+                                            <input type="file" class="form-control" id="backup-file" accept=".sql,.dump">
+                                        </div>
+                                        <button type="button" class="btn btn-warning" onclick="restoreBackup()">
+                                            <i class="fas fa-upload"></i> Восстановить
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Логи -->
+                    <div class="tab-pane fade" id="logs">
+                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                            <h1 class="h2">Логи системы</h1>
+                            <div class="btn-toolbar mb-2 mb-md-0">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshLogs()">
+                                    <i class="fas fa-sync-alt"></i> Обновить
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Фильтр по уровню</label>
+                                    <select class="form-select" id="log-level-filter">
+                                        <option value="">Все уровни</option>
+                                        <option value="INFO">INFO</option>
+                                        <option value="WARNING">WARNING</option>
+                                        <option value="ERROR">ERROR</option>
+                                    </select>
+                                </div>
+                                <div id="logs-content">
+                                    <div class="loading">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Загрузка логов...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Модальное окно добавления устройства -->
+    <div class="modal fade" id="addDeviceModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Добавить устройство</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addDeviceForm">
+                        <div class="mb-3">
+                            <label class="form-label">Название устройства</label>
+                            <input type="text" class="form-control" id="deviceName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Тип устройства</label>
+                            <select class="form-select" id="deviceType" required>
+                                <option value="">Выберите тип</option>
+                                <option value="sensor">Датчик</option>
+                                <option value="actuator">Исполнительное устройство</option>
+                                <option value="gateway">Шлюз</option>
+                                <option value="controller">Контроллер</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Местоположение</label>
+                            <input type="text" class="form-control" id="deviceLocation">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Тип сенсора</label>
+                            <input type="text" class="form-control" id="sensorType">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Частота дискретизации (Гц)</label>
+                            <input type="number" class="form-control" id="samplingRate" min="1" max="1000">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" onclick="submitDevice()">Добавить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html> 
