@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 import redis
 import requests
 import json
@@ -234,6 +234,23 @@ async def get_historical_analytics(start_date: str = None, end_date: str = None)
         params = f"?start_date={start_date}&end_date={end_date}"
     return await forward_request("analytics", f"/historical{params}")
 
+@app.get("/anomalies")
+async def get_anomalies():
+    """Получить аномалии"""
+    return await forward_request("analytics", "/anomalies")
+
+@app.get("/devices/summary")
+async def get_devices_summary():
+    """Получить сводку по устройствам"""
+    return await forward_request("device", "/summary")
+
+@app.get("/system/status")
+async def get_system_status():
+    """Получить общий статус системы"""
+    # Этот эндпоинт может собирать данные из нескольких сервисов
+    # Для простоты, пока просто перенаправляем на health check
+    return await health_check()
+
 @app.get("/users")
 async def get_users():
     """Получить список пользователей"""
@@ -260,11 +277,11 @@ async def create_user(user_data: Dict[str, Any]):
 @app.get("/metrics")
 async def metrics():
     """Метрики Prometheus"""
-    return JSONResponse(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 @app.get("/cache/clear")
 async def clear_cache():
-    """Очистить кэш"""
+    """Очистить кэш Redis"""
     try:
         redis_client.flushdb()
         return {"message": "Cache cleared successfully"}
