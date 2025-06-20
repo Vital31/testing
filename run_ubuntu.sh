@@ -15,6 +15,17 @@ echo "Обновление системы и установка зависимо
 sudo apt update
 sudo apt install -y git docker.io docker-compose python3 python3-pip
 
+# === Освобождение порта 53 (для dnsmasq) ===
+echo "Освобождение порта 53..."
+# Проверяем, существует ли сервис systemd-resolved, и останавливаем его
+if systemctl list-units --full -all | grep -Fq 'systemd-resolved.service'; then
+    sudo systemctl stop systemd-resolved
+    sudo systemctl disable systemd-resolved
+fi
+# Заменяем симлинк на статичный DNS-конфиг
+sudo rm -f /etc/resolv.conf
+echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf > /dev/null
+
 # === Клонирование репозитория ===
 echo "Клонирование репозитория..."
 REPO_DIR=$(basename "$REPO_URL" .git)
