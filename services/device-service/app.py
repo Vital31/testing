@@ -10,6 +10,7 @@ from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_
 import structlog
 import os
 from celery import Celery
+from sqlalchemy import text
 
 # Настройка логирования
 structlog.configure(
@@ -162,7 +163,7 @@ def health_check():
     """Проверка здоровья сервиса"""
     try:
         # Проверяем подключение к базе данных
-        db.session.execute('SELECT 1')
+        db.session.execute(text('SELECT 1'))
         
         # Проверяем подключение к Redis
         redis_client.ping()

@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 import json
 import time
 from datetime import datetime
@@ -107,7 +108,7 @@ def health_check():
     """Проверка здоровья сервиса"""
     try:
         # Проверяем подключение к базе данных
-        db.session.execute('SELECT 1')
+        db.session.execute(text('SELECT 1'))
         
         return jsonify({
             'status': 'healthy',

@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 import redis
 import json
 import time
@@ -190,7 +191,7 @@ def health_check():
     """Проверка здоровья сервиса"""
     try:
         # Проверяем подключение к базе данных
-        db.session.execute('SELECT 1')
+        db.session.execute(text('SELECT 1'))
         
         # Проверяем подключение к Redis
         redis_client.ping()
