@@ -45,6 +45,20 @@ async function apiRequest(endpoint, options = {}) {
     }
 }
 
+async function apiTextRequest(endpoint, options = {}) {
+    try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.text();
+    } catch (error) {
+        console.error('API text request failed:', error);
+        showError(`Ошибка API (text): ${error.message}`);
+        throw error;
+    }
+}
+
 // Показать ошибку
 function showError(message) {
     const errorDiv = document.createElement('div');
@@ -433,15 +447,16 @@ function displayAnomalies(anomalies) {
 // Мониторинг
 async function loadMonitoringData() {
     try {
-        showLoading('prometheus-metrics');
+        showLoading('monitoring-data');
         
-        const metricsData = await apiRequest('/metrics');
+        // Загружаем метрики Prometheus
+        const metricsData = await apiTextRequest('/metrics');
         displayPrometheusMetrics(metricsData);
         
-        hideLoading('prometheus-metrics');
+        hideLoading('monitoring-data');
     } catch (error) {
         console.error('Failed to load monitoring data:', error);
-        hideLoading('prometheus-metrics');
+        hideLoading('monitoring-data');
     }
 }
 

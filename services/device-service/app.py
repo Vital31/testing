@@ -385,6 +385,29 @@ def get_device_data(device_id):
         logger.error("Failed to get device data", device_id=device_id, error=str(e))
         return jsonify({'error': 'Internal server error'}), 500
 
+@app.route('/summary', methods=['GET'])
+def get_summary():
+    """Получить сводную информацию по устройствам"""
+    try:
+        total_devices = Device.query.count()
+        active_devices = Device.query.filter_by(status='active').count()
+        offline_devices = Device.query.filter_by(status='offline').count()
+
+        # Группировка по типам
+        device_types_query = db.session.query(Device.device_type, db.func.count(Device.device_type)).group_by(Device.device_type).all()
+        device_types = {dtype: count for dtype, count in device_types_query}
+
+        return jsonify({
+            'total_devices': total_devices,
+            'active_devices': active_devices,
+            'offline_devices': offline_devices,
+            'device_types': device_types
+        }), 200
+
+    except Exception as e:
+        logger.error("Failed to get device summary", error=str(e))
+        return jsonify({'error': 'Internal server error'}), 500
+
 @app.route('/metrics')
 def metrics():
     """Метрики Prometheus"""
